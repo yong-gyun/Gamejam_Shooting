@@ -25,6 +25,7 @@ public class PlayerController : MonoBehaviour
                 case Define.PlayerState.Jump:
                     break;
                 case Define.PlayerState.Attack:
+                    anim.CrossFade("Attack", 0.1f);
                     break;
                 case Define.PlayerState.Die:
                     break;
@@ -33,17 +34,20 @@ public class PlayerController : MonoBehaviour
     }
 
     [SerializeField] Define.PlayerState _state;
-    [SerializeField] Rigidbody rb;
-    [SerializeField] Animator anim;
-    GameObject bulletOrigin;
-    Transform firePos;
+    Rigidbody rb;
+    Animator anim;
+    [SerializeField] GameObject bulletOrigin;
+    [SerializeField] Transform firePos;
 
     float maxHp;
     float hp;
     float damage;
     float moveSpeed;
+    float rotSpeed;
     float rollPower;
-
+    bool isAction;
+    
+    Vector3 dir;
     Define.Weapon weaponType = Define.Weapon.Unknow;
 
     void Start()
@@ -51,36 +55,60 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         anim = GetComponentInChildren<Animator>();
 
-        bulletOrigin = Resources.Load<GameObject>("Prefabs/Bullet");
+        //bulletOrigin = Resources.Load<GameObject>("Prefabs/Bullet");
         firePos = transform.Find("FirePos");
-
 
         maxHp = 100f;
         hp = maxHp;
         damage = 10f;
-        moveSpeed = 7.5f;
+        moveSpeed = 10f;
+        rotSpeed = 40f;
+
+        State = Define.PlayerState.Idle;
     }
 
     void Update()
-    {
-        if (State == Define.PlayerState.Die)
-            return;
-
-        UpdateMove();
-        UpdateAttack();
-    }
-
-    void UpdateMove()
     {
 
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
 
-        Vector3 dir = (Vector3.right * horizontal) + (Vector3.forward * vertical);
+        dir = (Vector3.right * horizontal) + (Vector3.forward * vertical);
+       
+        if (State == Define.PlayerState.Die)
+            return;
 
+        if (Input.GetMouseButtonDown(0))
+        {
+            State = Define.PlayerState.Attack;
+        }
+
+        switch (State)
+        {
+            case Define.PlayerState.Idle:
+                UpdateIdle();
+                break;
+            case Define.PlayerState.Move:
+                UpdateMove();
+                break;
+            case Define.PlayerState.Attack:
+                UpdateAttack();
+                break;
+        }
+    }
+
+    void UpdateIdle()
+    {
+        if(dir != Vector3.zero)
+            State = Define.PlayerState.Move;
+    }
+
+    void UpdateMove()
+    {
         if (dir != Vector3.zero)
         {
-            State = Define.PlayerState.Move;
+            transform.position += dir * moveSpeed * Time.deltaTime;
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), rotSpeed * Time.deltaTime);
         }
         else
         {
@@ -88,25 +116,35 @@ public class PlayerController : MonoBehaviour
         }
 
         //rb.velocity = dir * moveSpeed;
-        transform.position += dir * moveSpeed * Time.deltaTime;
     }
 
     void UpdateAttack()
     {
-        if(Input.GetMouseButtonDown(0))
-        {
-            State = Define.PlayerState.Attack;
-        }
+        if(!isAction)
+            StartCoroutine(CoWaitForAnimState_Idle());
     }
 
     void OnAttack()
     {
-
+        Instantiate(bulletOrigin, firePos.position, Quaternion.identity);
     }
 
-    void OnDodge()
+    IEnumerator CoWaitForAnimState_Idle()
     {
+        isAction = true;
 
+        while(true)
+        {
+            Debug.Log(anim.GetCurrentAnimatorStateInfo(0).normalizedTime);
+            if (anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1f && anim.GetCurrentAnimatorStateInfo(0).normalizedTime <= 1.2f)
+                break;
+
+            yield return null;
+        }
+
+        isAction = false;
+        State = Define.PlayerState.Idle;
+        Debug.Log("Idle");
     }
     
 }
